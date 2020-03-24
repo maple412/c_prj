@@ -1,1 +1,7 @@
+<<<<<<< HEAD
 add test4.txt for branch merge test（rebase test....）
+=======
+add test4.txt for branch merge test（rebase test）
+
+modify test4.txt for cherry-pick test
+>>>>>>> 926663b... modify test4.txt for cherry_pick test
