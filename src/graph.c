@@ -61,18 +61,19 @@ void destroy_graph(Graph* graph) {
 // --- Graph Modification Functions ---
 
 // Creates a new adjacency list node
-static AdjListNode* create_adj_list_node(int dest_vertex) {
+static AdjListNode* create_adj_list_node(int dest_vertex, int weight) {
     AdjListNode* new_node = (AdjListNode*)malloc(sizeof(AdjListNode));
     if (new_node == NULL) {
         perror("Failed to allocate memory for AdjListNode");
         return NULL; 
     }
     new_node->dest_vertex = dest_vertex;
+    new_node->weight = weight;
     new_node->next = NULL;
     return new_node;
 }
 
-void add_edge(Graph* graph, int src_vertex, int dest_vertex) {
+void add_edge(Graph* graph, int src_vertex, int dest_vertex, int weight) {
     if (graph == NULL) {
         fprintf(stderr, "Error: Graph is NULL.\n");
         return;
@@ -85,7 +86,7 @@ void add_edge(Graph* graph, int src_vertex, int dest_vertex) {
     }
 
     // Add an edge from src_vertex to dest_vertex
-    AdjListNode* new_node_dest = create_adj_list_node(dest_vertex);
+    AdjListNode* new_node_dest = create_adj_list_node(dest_vertex, weight);
     if (new_node_dest == NULL) return; // Error handled in create_adj_list_node
 
     new_node_dest->next = graph->adj_lists[src_vertex].head;
@@ -93,10 +94,15 @@ void add_edge(Graph* graph, int src_vertex, int dest_vertex) {
 
     // If the graph is undirected, add an edge from dest_vertex to src_vertex as well
     if (!graph->is_directed) {
-        AdjListNode* new_node_src = create_adj_list_node(src_vertex);
+        AdjListNode* new_node_src = create_adj_list_node(src_vertex, weight); // Use the same weight
         if (new_node_src == NULL) {
             // If this allocation fails, the graph is in an inconsistent state for undirected.
             // For simplicity here, we don't roll back the first edge.
+            // A more robust implementation might handle this, or ensure the first edge is also not added.
+            // For now, we'll just return if the reverse edge fails.
+            // The first edge (dest from src) is already added. This could be an issue.
+            // A better approach for atomicity would be to check both allocations first.
+            // However, sticking to minimal changes from original.
             // A more robust implementation might handle this.
             return; 
         }
@@ -122,8 +128,7 @@ void print_graph(Graph* graph) {
             printf("-> NULL");
         }
         while (current_node != NULL) {
-            printf("-> %d", current_node->dest_vertex);
-            // if (current_node->weight != 0) printf("(w:%d)", current_node->weight); // If weighted
+            printf("-> %d(w:%d)", current_node->dest_vertex, current_node->weight);
             current_node = current_node->next;
         }
         printf("\n");

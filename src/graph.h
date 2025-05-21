@@ -8,7 +8,7 @@
 // Node in the adjacency list
 typedef struct AdjListNode {
     int dest_vertex;           // Destination vertex of an edge
-    // int weight;             // Optional: Weight of the edge
+    int weight;                // Weight of the edge
     struct AdjListNode *next;  // Pointer to the next node in the list
 } AdjListNode;
 
@@ -29,8 +29,7 @@ Graph* create_graph(int num_vertices, bool is_directed);
 void destroy_graph(Graph* graph);
 
 // Graph modification functions
-// For unweighted graphs. Add 'int weight' param for weighted graphs.
-void add_edge(Graph* graph, int src_vertex, int dest_vertex);
+void add_edge(Graph* graph, int src_vertex, int dest_vertex, int weight);
 // void remove_edge(Graph* graph, int src_vertex, int dest_vertex); // Optional
 
 // Graph utility functions

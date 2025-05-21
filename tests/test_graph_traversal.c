@@ -2,50 +2,79 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <string.h> // For memset
 
-#include "../src/graph.h"           // For Graph structure and functions
-#include "../src/graph_traversal.h" // For BFS and DFS
+#include "../src/graph.h"           
+#include "../src/graph_traversal.h" 
 
 // Helper array and index to store visited order for tests
-int visited_order[100]; // Assuming max 100 vertices for test graphs
+#define MAX_TEST_VERTICES 100
+int visited_order[MAX_TEST_VERTICES]; 
 int visited_idx;
 
 // Simple visit callback function for testing
 void test_visit_logger(int vertex) {
-    if (visited_idx < 100) {
+    if (visited_idx < MAX_TEST_VERTICES) {
         visited_order[visited_idx++] = vertex;
     }
-    // printf("Visited: %d\n", vertex); // Optional: for debugging
 }
 
 // Helper to reset visited order array for each test
 void reset_visited_order(void) {
     visited_idx = 0;
-    for (int i = 0; i < 100; ++i) {
-        visited_order[i] = -1; // Mark as unvisited or use a sentinel
+    for (int i = 0; i < MAX_TEST_VERTICES; ++i) {
+        visited_order[i] = -1; 
     }
+}
+
+// Helper to sort an array (for comparing visited nodes irrespective of order)
+static int compare_ints(const void* a, const void* b) {
+    return (*(int*)a - *(int*)b);
 }
 
 // Helper to compare visited order with expected order
-void assert_visited_order(int expected_order[], int expected_len) {
+// If check_exact_order is true, compares exact sequence.
+// Otherwise, checks if the set of visited nodes is the same.
+void assert_visited_nodes(int expected_nodes[], int expected_len, bool check_exact_order) {
     assert(visited_idx == expected_len);
-    for (int i = 0; i < expected_len; ++i) {
-        assert(visited_order[i] == expected_order[i]);
+    if (expected_len == 0) return; // Nothing to compare if no nodes were expected/visited
+
+    if (check_exact_order) {
+        for (int i = 0; i < expected_len; ++i) {
+            assert(visited_order[i] == expected_nodes[i]);
+        }
+    } else {
+        // Sort both arrays and then compare
+        qsort(visited_order, visited_idx, sizeof(int), compare_ints);
+        // expected_nodes might be modified by qsort, so make a copy if it's a literal
+        int* sorted_expected = (int*)malloc(expected_len * sizeof(int));
+        assert(sorted_expected != NULL);
+        memcpy(sorted_expected, expected_nodes, expected_len * sizeof(int));
+        qsort(sorted_expected, expected_len, sizeof(int), compare_ints);
+
+        for (int i = 0; i < expected_len; ++i) {
+            assert(visited_order[i] == sorted_expected[i]);
+        }
+        free(sorted_expected);
     }
 }
 
+
 // Test function prototypes
-void test_graph_creation_and_add_edge(void); // Basic test for graph module itself
+void test_graph_creation_and_add_edge(void);
 void test_bfs_simple_graph(void);
 void test_dfs_simple_graph(void);
 void test_bfs_disconnected_graph(void);
 void test_dfs_disconnected_graph(void);
-void test_bfs_empty_graph(void);
-void test_dfs_empty_graph(void);
+void test_bfs_empty_graph_and_no_edges(void);
+void test_dfs_empty_graph_and_no_edges(void);
 void test_bfs_single_node_graph(void);
 void test_dfs_single_node_graph(void);
-void test_bfs_cyclic_graph(void);
-void test_dfs_cyclic_graph(void);
+void test_bfs_cyclic_graph_with_tail(void);
+void test_dfs_cyclic_graph_with_tail(void);
+void test_bfs_directed_graph(void);
+void test_dfs_directed_graph(void);
+void test_traversal_start_node_out_of_bounds(void);
 
 
 // Main function to run all tests
@@ -57,207 +86,293 @@ int main() {
     test_dfs_simple_graph();
     test_bfs_disconnected_graph();
     test_dfs_disconnected_graph();
-    test_bfs_empty_graph();
-    test_dfs_empty_graph();
+    test_bfs_empty_graph_and_no_edges();
+    test_dfs_empty_graph_and_no_edges();
     test_bfs_single_node_graph();
     test_dfs_single_node_graph();
-    test_bfs_cyclic_graph();
-    test_dfs_cyclic_graph();
+    test_bfs_cyclic_graph_with_tail();
+    test_dfs_cyclic_graph_with_tail();
+    test_bfs_directed_graph();
+    test_dfs_directed_graph();
+    test_traversal_start_node_out_of_bounds();
 
-    printf("Graph Traversal tests completed (many are placeholders)!\n");
+    printf("\nGraph Traversal tests completed!\n");
     return 0;
 }
 
-// Implementations of test functions (placeholders)
-
 void test_graph_creation_and_add_edge(void) {
     printf("  Testing graph creation and add_edge...\n");
-    Graph* g = create_graph(5, false); // 5 vertices, undirected
+    Graph* g = create_graph(5, false); 
     assert(g != NULL);
     assert(g->num_vertices == 5);
     assert(g->is_directed == false);
     assert(g->adj_lists != NULL);
     for(int i=0; i<5; ++i) assert(g->adj_lists[i].head == NULL);
 
-    add_edge(g, 0, 1);
+    add_edge(g, 0, 1); // Edges are added to front
     add_edge(g, 0, 2);
     add_edge(g, 1, 3);
-    // print_graph(g); // For debugging
     
-    // Basic check for edge existence (more thorough checks in traversal tests)
-    assert(g->adj_lists[0].head != NULL); // 0 should have neighbors
-    assert(g->adj_lists[4].head == NULL); // 4 should have no neighbors yet
+    assert(g->adj_lists[0].head != NULL && (g->adj_lists[0].head->dest_vertex == 2 || g->adj_lists[0].head->dest_vertex == 1) );
+    assert(g->adj_lists[0].head->next != NULL && (g->adj_lists[0].head->next->dest_vertex == 1 || g->adj_lists[0].head->next->dest_vertex == 2));
+    assert(g->adj_lists[1].head != NULL && (g->adj_lists[1].head->dest_vertex == 3 || g->adj_lists[1].head->dest_vertex == 0)); // Undirected
+    assert(g->adj_lists[2].head != NULL && g->adj_lists[2].head->dest_vertex == 0); // Undirected
+    assert(g->adj_lists[3].head != NULL && g->adj_lists[3].head->dest_vertex == 1); // Undirected
+    assert(g->adj_lists[4].head == NULL); 
 
     destroy_graph(g);
     printf("  test_graph_creation_and_add_edge: PASSED\n");
 }
 
 void test_bfs_simple_graph(void) {
-    printf("  Testing BFS on a simple connected graph...\n");
-    Graph* g = create_graph(4, false);
-    add_edge(g, 0, 1);
-    add_edge(g, 0, 2);
-    add_edge(g, 1, 2);
-    add_edge(g, 2, 0); // Redundant for undirected, but fine
-    add_edge(g, 2, 3);
-    add_edge(g, 3, 3); // Self-loop
+    printf("  Testing BFS on a simple connected graph (7 vertices)...\n");
+    Graph* g = create_graph(7, false);
+    //  0 -- 1 -- 2
+    //  |    |    |
+    //  3 -- 4 -- 5 -- 6
+    add_edge(g, 0, 1); add_edge(g, 0, 3);
+    add_edge(g, 1, 2); add_edge(g, 1, 4);
+    add_edge(g, 2, 5);
+    add_edge(g, 3, 4);
+    add_edge(g, 4, 5);
+    add_edge(g, 5, 6);
 
     reset_visited_order();
-    bfs_traversal(g, 2, test_visit_logger);
-    int expected_bfs[] = {2, 0, 1, 3}; // One possible BFS order from vertex 2
-    // Order can vary based on neighbor insertion order and queue behavior.
-    // This test might need adjustment if the BFS queue processes neighbors in a specific fixed order.
-    // For now, let's assume a common order.
-    // A more robust test checks if all nodes are visited and if distances are correct.
-    // For simplicity, we'll assert a plausible order.
-    printf("    BFS from 2: "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    // assert_visited_order(expected_bfs, 4); // This can be too strict.
-    assert(visited_idx == 4); // Check if all connected nodes are visited.
+    bfs_traversal(g, 0, test_visit_logger);
+    int expected_nodes[] = {0, 1, 3, 2, 4, 5, 6}; // All nodes
+    assert_visited_nodes(expected_nodes, 7, false); // Order not strictly checked
 
     destroy_graph(g);
-    printf("  test_bfs_simple_graph: PASSED (basic check)\n");
+    printf("  test_bfs_simple_graph: PASSED\n");
 }
 
 void test_dfs_simple_graph(void) {
-    printf("  Testing DFS on a simple connected graph...\n");
-    Graph* g = create_graph(4, false);
-    add_edge(g, 0, 1);
-    add_edge(g, 0, 2);
-    add_edge(g, 1, 2);
-    add_edge(g, 2, 0);
-    add_edge(g, 2, 3);
-    add_edge(g, 3, 3);
+    printf("  Testing DFS on a simple connected graph (7 vertices)...\n");
+    Graph* g = create_graph(7, false);
+    add_edge(g, 0, 1); add_edge(g, 0, 3);
+    add_edge(g, 1, 2); add_edge(g, 1, 4);
+    add_edge(g, 2, 5);
+    add_edge(g, 3, 4);
+    add_edge(g, 4, 5);
+    add_edge(g, 5, 6);
 
     reset_visited_order();
-    dfs_traversal(g, 2, test_visit_logger);
-    // One possible DFS order from vertex 2: e.g., 2,0,1,3 or 2,3,0,1 etc.
-    // DFS order is highly dependent on implementation details (recursion stack, neighbor iteration).
-    printf("    DFS from 2: "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 4); // Check if all connected nodes are visited.
+    dfs_traversal(g, 0, test_visit_logger);
+    int expected_nodes[] = {0, 1, 2, 5, 6, 4, 3}; // All nodes
+    assert_visited_nodes(expected_nodes, 7, false); // Order not strictly checked
 
     destroy_graph(g);
-    printf("  test_dfs_simple_graph: PASSED (basic check)\n");
+    printf("  test_dfs_simple_graph: PASSED\n");
 }
 
-// TODO: Implement other test functions using reset_visited_order() and assert_visited_order()
-// For disconnected graphs, BFS/DFS from one node will only visit its connected component.
-// Test this behavior.
 
 void test_bfs_disconnected_graph(void) {
     printf("  Testing BFS on a disconnected graph...\n");
-    Graph* g = create_graph(5, false); // 0-1-2 and 3-4
-    add_edge(g, 0, 1); add_edge(g, 1, 2);
-    add_edge(g, 3, 4);
+    Graph* g = create_graph(5, false); 
+    add_edge(g, 0, 1); add_edge(g, 1, 2); // Component 1: 0,1,2
+    add_edge(g, 3, 4);                   // Component 2: 3,4
 
     reset_visited_order();
-    bfs_traversal(g, 0, test_visit_logger); // Start BFS from 0
-    // Expected to visit only 0, 1, 2
-    printf("    BFS from 0 (disconnected): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 3); // Should visit 0, 1, 2
-    // Can check contents if order is predictable, e.g., {0,1,2} in some permutation
+    bfs_traversal(g, 0, test_visit_logger); 
+    int comp1_nodes[] = {0, 1, 2};
+    assert_visited_nodes(comp1_nodes, 3, false);
 
     reset_visited_order();
-    bfs_traversal(g, 3, test_visit_logger); // Start BFS from 3
-    printf("    BFS from 3 (disconnected): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 2); // Should visit 3, 4
+    bfs_traversal(g, 3, test_visit_logger); 
+    int comp2_nodes[] = {3, 4};
+    assert_visited_nodes(comp2_nodes, 2, false);
 
     destroy_graph(g);
-    printf("  test_bfs_disconnected_graph: PASSED (basic check)\n");
+    printf("  test_bfs_disconnected_graph: PASSED\n");
 }
 
 void test_dfs_disconnected_graph(void) {
     printf("  Testing DFS on a disconnected graph...\n");
-    Graph* g = create_graph(5, false); // 0-1-2 and 3-4
+    Graph* g = create_graph(5, false); 
     add_edge(g, 0, 1); add_edge(g, 1, 2);
     add_edge(g, 3, 4);
 
     reset_visited_order();
-    dfs_traversal(g, 0, test_visit_logger); // Start DFS from 0
-    printf("    DFS from 0 (disconnected): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 3); 
+    dfs_traversal(g, 0, test_visit_logger);
+    int comp1_nodes[] = {0, 1, 2};
+    assert_visited_nodes(comp1_nodes, 3, false);
 
     reset_visited_order();
-    dfs_traversal(g, 3, test_visit_logger); // Start DFS from 3
-    printf("    DFS from 3 (disconnected): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 2);
+    dfs_traversal(g, 3, test_visit_logger);
+    int comp2_nodes[] = {3, 4};
+    assert_visited_nodes(comp2_nodes, 2, false);
 
     destroy_graph(g);
-    printf("  test_dfs_disconnected_graph: PASSED (basic check)\n");
+    printf("  test_dfs_disconnected_graph: PASSED\n");
 }
 
-void test_bfs_empty_graph(void) {
-    printf("  Testing BFS on an empty graph (no vertices)...\n");
-    Graph* g = create_graph(0, false);
+void test_bfs_empty_graph_and_no_edges(void) {
+    printf("  Testing BFS on an empty graph and graph with no edges...\n");
+    Graph* g_empty = create_graph(0, false); // Graph with 0 vertices
     reset_visited_order();
-    // bfs_traversal(g, 0, test_visit_logger); // Starting vertex 0 is invalid
-    // What should happen? BFS should probably handle g->num_vertices == 0 gracefully.
-    // Or, if start_vertex is out of bounds. Assume start_vertex must be < num_vertices.
-    // For a graph with 0 vertices, traversal cannot start.
-    assert(g->num_vertices == 0);
-    // No traversal to call if num_vertices is 0.
-    // If we had a graph with vertices but no edges:
-    Graph* g_no_edges = create_graph(3, false);
+    bfs_traversal(g_empty, 0, test_visit_logger); // Call with invalid start_vertex
+    assert(visited_idx == 0); // Should do nothing
+    destroy_graph(g_empty);
+
+    Graph* g_no_edges = create_graph(3, false); // 3 vertices, 0 edges
     reset_visited_order();
     bfs_traversal(g_no_edges, 0, test_visit_logger);
-    printf("    BFS from 0 (no edges): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 1); assert(visited_order[0] == 0);
-
-    destroy_graph(g);
+    int expected_no_edges[] = {0};
+    assert_visited_nodes(expected_no_edges, 1, true);
     destroy_graph(g_no_edges);
-    printf("  test_bfs_empty_graph: PASSED\n");
+    printf("  test_bfs_empty_graph_and_no_edges: PASSED\n");
 }
-void test_dfs_empty_graph(void) { /* Similar to BFS empty */ 
-    printf("  Testing DFS on an empty graph (no vertices)...\n");
-    Graph* g = create_graph(0, false);
-    assert(g->num_vertices == 0);
+
+void test_dfs_empty_graph_and_no_edges(void) { 
+    printf("  Testing DFS on an empty graph and graph with no edges...\n");
+    Graph* g_empty = create_graph(0, false);
+    reset_visited_order();
+    dfs_traversal(g_empty, 0, test_visit_logger);
+    assert(visited_idx == 0);
+    destroy_graph(g_empty);
+
     Graph* g_no_edges = create_graph(3, false);
     reset_visited_order();
-    dfs_traversal(g_no_edges, 0, test_visit_logger);
-    printf("    DFS from 0 (no edges): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 1); assert(visited_order[0] == 0);
-    destroy_graph(g);
+    dfs_traversal(g_no_edges, 1, test_visit_logger);
+    int expected_no_edges[] = {1};
+    assert_visited_nodes(expected_no_edges, 1, true);
     destroy_graph(g_no_edges);
-    printf("  test_dfs_empty_graph: PASSED\n");
+    printf("  test_dfs_empty_graph_and_no_edges: PASSED\n");
 }
-void test_bfs_single_node_graph(void) { /* Graph with 1 vertex, 0 edges */ 
+
+void test_bfs_single_node_graph(void) { 
     printf("  Testing BFS on a single node graph...\n");
     Graph* g = create_graph(1, false);
     reset_visited_order();
     bfs_traversal(g, 0, test_visit_logger);
-    printf("    BFS from 0 (single node): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 1); assert(visited_order[0] == 0);
+    int expected[] = {0};
+    assert_visited_nodes(expected, 1, true);
     destroy_graph(g);
     printf("  test_bfs_single_node_graph: PASSED\n");
 }
-void test_dfs_single_node_graph(void) { /* Similar */ 
+
+void test_dfs_single_node_graph(void) { 
     printf("  Testing DFS on a single node graph...\n");
     Graph* g = create_graph(1, false);
     reset_visited_order();
     dfs_traversal(g, 0, test_visit_logger);
-    printf("    DFS from 0 (single node): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 1); assert(visited_order[0] == 0);
+    int expected[] = {0};
+    assert_visited_nodes(expected, 1, true);
     destroy_graph(g);
     printf("  test_dfs_single_node_graph: PASSED\n");
 }
-void test_bfs_cyclic_graph(void) { /* Test BFS on cyclic graph */ 
-    printf("  Testing BFS on a cyclic graph...\n");
-    Graph* g = create_graph(3, false); // 0-1-2-0 cycle
-    add_edge(g,0,1); add_edge(g,1,2); add_edge(g,2,0);
+
+void test_bfs_cyclic_graph_with_tail(void) { 
+    printf("  Testing BFS on a cyclic graph with a tail...\n");
+    Graph* g = create_graph(4, false); // 0-1, 1-2, 2-0 (cycle), 2-3 (tail)
+    add_edge(g,0,1); add_edge(g,1,2); add_edge(g,2,0); add_edge(g,2,3);
+    
     reset_visited_order();
     bfs_traversal(g,0,test_visit_logger);
-    printf("    BFS from 0 (cyclic): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 3); // Should visit all nodes
+    int expected_from_0[] = {0,1,2,3}; // All nodes
+    assert_visited_nodes(expected_from_0, 4, false);
+
+    reset_visited_order();
+    bfs_traversal(g,3,test_visit_logger); // Start from tail
+    int expected_from_3[] = {3,2,0,1}; // All nodes (since undirected)
+    assert_visited_nodes(expected_from_3, 4, false);
+
     destroy_graph(g);
-    printf("  test_bfs_cyclic_graph: PASSED\n");
+    printf("  test_bfs_cyclic_graph_with_tail: PASSED\n");
 }
-void test_dfs_cyclic_graph(void) { /* Test DFS on cyclic graph */ 
-    printf("  Testing DFS on a cyclic graph...\n");
-    Graph* g = create_graph(3, false); // 0-1-2-0 cycle
-    add_edge(g,0,1); add_edge(g,1,2); add_edge(g,2,0);
+
+void test_dfs_cyclic_graph_with_tail(void) { 
+    printf("  Testing DFS on a cyclic graph with a tail...\n");
+    Graph* g = create_graph(4, false); 
+    add_edge(g,0,1); add_edge(g,1,2); add_edge(g,2,0); add_edge(g,2,3);
+    
     reset_visited_order();
     dfs_traversal(g,0,test_visit_logger);
-    printf("    DFS from 0 (cyclic): "); for(int i=0; i<visited_idx; ++i) printf("%d ", visited_order[i]); printf("\n");
-    assert(visited_idx == 3); // Should visit all nodes
+    int expected_from_0[] = {0,1,2,3};
+    assert_visited_nodes(expected_from_0, 4, false);
+
+    reset_visited_order();
+    dfs_traversal(g,3,test_visit_logger);
+    int expected_from_3[] = {3,2,0,1}; 
+    assert_visited_nodes(expected_from_3, 4, false);
+
     destroy_graph(g);
-    printf("  test_dfs_cyclic_graph: PASSED\n");
+    printf("  test_dfs_cyclic_graph_with_tail: PASSED\n");
+}
+
+void test_bfs_directed_graph(void) {
+    printf("  Testing BFS on a directed graph...\n");
+    Graph* g = create_graph(4, true); // Directed
+    add_edge(g, 0, 1); // 0 -> 1
+    add_edge(g, 0, 2); // 0 -> 2
+    add_edge(g, 1, 2); // 1 -> 2
+    add_edge(g, 2, 3); // 2 -> 3
+
+    reset_visited_order();
+    bfs_traversal(g, 0, test_visit_logger); // Start from 0
+    int expected_from_0[] = {0, 1, 2, 3}; // All reachable from 0
+    assert_visited_nodes(expected_from_0, 4, false);
+
+    reset_visited_order();
+    bfs_traversal(g, 1, test_visit_logger); // Start from 1
+    int expected_from_1[] = {1, 2, 3}; // Reachable from 1
+    assert_visited_nodes(expected_from_1, 3, false);
+    
+    reset_visited_order();
+    bfs_traversal(g, 3, test_visit_logger); // Start from 3
+    int expected_from_3[] = {3}; // Only 3 is reachable from 3
+    assert_visited_nodes(expected_from_3, 1, true);
+
+    destroy_graph(g);
+    printf("  test_bfs_directed_graph: PASSED\n");
+}
+
+void test_dfs_directed_graph(void) {
+    printf("  Testing DFS on a directed graph...\n");
+    Graph* g = create_graph(4, true);
+    add_edge(g, 0, 1); add_edge(g, 0, 2); 
+    add_edge(g, 1, 2); add_edge(g, 2, 3);
+
+    reset_visited_order();
+    dfs_traversal(g, 0, test_visit_logger); 
+    int expected_from_0[] = {0, 1, 2, 3}; 
+    assert_visited_nodes(expected_from_0, 4, false);
+
+    reset_visited_order();
+    dfs_traversal(g, 1, test_visit_logger); 
+    int expected_from_1[] = {1, 2, 3}; 
+    assert_visited_nodes(expected_from_1, 3, false);
+
+    reset_visited_order();
+    dfs_traversal(g, 3, test_visit_logger); 
+    int expected_from_3[] = {3}; 
+    assert_visited_nodes(expected_from_3, 1, true);
+
+    destroy_graph(g);
+    printf("  test_dfs_directed_graph: PASSED\n");
+}
+
+void test_traversal_start_node_out_of_bounds(void) {
+    printf("  Testing traversals with start_vertex out of bounds...\n");
+    Graph* g = create_graph(3, false);
+    add_edge(g,0,1);
+
+    reset_visited_order();
+    bfs_traversal(g, 3, test_visit_logger); // Vertex 3 is out of bounds (0-2)
+    assert(visited_idx == 0);
+
+    reset_visited_order();
+    bfs_traversal(g, -1, test_visit_logger); // Vertex -1 is out of bounds
+    assert(visited_idx == 0);
+
+    reset_visited_order();
+    dfs_traversal(g, 3, test_visit_logger);
+    assert(visited_idx == 0);
+
+    reset_visited_order();
+    dfs_traversal(g, -1, test_visit_logger);
+    assert(visited_idx == 0);
+    
+    destroy_graph(g);
+    printf("  test_traversal_start_node_out_of_bounds: PASSED\n");
 }
