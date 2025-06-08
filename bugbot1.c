@@ -1,6 +1,8 @@
-int a
+#include <stdlib.h>
+
+int a;
 void main()
 {
   int *p;
-  p=(int*)malloc(10*sizeof(100))
+  p=(int*)malloc(10*sizeof(int));
 }
